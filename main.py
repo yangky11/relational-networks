@@ -2,64 +2,32 @@
 Pytorch implementation of "A simple neural network module for relational reasoning
 Code is based on pytorch/examples/mnist (https://github.com/pytorch/examples/tree/master/mnist)
 """""""""
-from __future__ import print_function
 import argparse
 import os
-import cPickle as pickle
+import pickle
 import random
 import numpy as np
-
 import torch
 from torch.autograd import Variable
-
-import model
-
-# Training settings
-parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-parser.add_argument('--batch-size', type=int, default=64, metavar='N',
-                    help='input batch size for training (default: 64)')
-parser.add_argument('--epochs', type=int, default=20, metavar='N',
-                    help='number of epochs to train (default: 20)')
-parser.add_argument('--lr', type=float, default=0.0001, metavar='LR',
-                    help='learning rate (default: 0.0001)')
-parser.add_argument('--no-cuda', action='store_true', default=False,
-                    help='disables CUDA training')
-parser.add_argument('--seed', type=int, default=1, metavar='S',
-                    help='random seed (default: 1)')
-parser.add_argument('--log-interval', type=int, default=10, metavar='N',
-                    help='how many batches to wait before logging training status')
-parser.add_argument('--resume', type=str,
-                    help='resume from model stored')
+from parseArgs import parseArgs
+from model import RN
 
 
-args = parser.parse_args()
-args.cuda = not args.no_cuda and torch.cuda.is_available()
+args = parseArgs()
 
-torch.manual_seed(args.seed)
-if args.cuda:
-    torch.cuda.manual_seed(args.seed)
+model = RN(args)
+model.cuda()
 
-model = model.RN(args)
-model_dirs = './model'
-bs = args.batch_size
-input_img = torch.FloatTensor(bs, 3, 75, 75)
-input_qst = torch.FloatTensor(bs, 10)
-label = torch.LongTensor(bs)
+batchsize = args.batchsize
+input_img = Variable(torch.FloatTensor(batchsize, 3, 75, 75).cuda())
+input_qst = Variable(torch.FloatTensor(batchsize, 10).cuda())
+label = Variable(torch.LongTensor(batchsize).cuda())
 
-if args.cuda:
-    model.cuda()
-    input_img = input_img.cuda()
-    input_qst = input_qst.cuda()
-    label = label.cuda()
-
-input_img = Variable(input_img)
-input_qst = Variable(input_qst)
-label = Variable(label)
 
 def tensor_data(data, i):
-    img = torch.from_numpy(np.asarray(data[0][bs*i:bs*(i+1)]))
-    qst = torch.from_numpy(np.asarray(data[1][bs*i:bs*(i+1)]))
-    ans = torch.from_numpy(np.asarray(data[2][bs*i:bs*(i+1)]))
+    img = torch.from_numpy(np.asarray(data[0][batchsize*i:batchsize*(i+1)]))
+    qst = torch.from_numpy(np.asarray(data[1][batchsize*i:batchsize*(i+1)]))
+    ans = torch.from_numpy(np.asarray(data[2][batchsize*i:batchsize*(i+1)]))
 
     input_img.data.resize_(img.size()).copy_(img)
     input_qst.data.resize_(qst.size()).copy_(qst)
@@ -86,7 +54,7 @@ def train(epoch, rel, norel):
     rel = cvt_data_axis(rel)
     norel = cvt_data_axis(norel)
 
-    for batch_idx in range(len(rel[0]) / bs):
+    for batch_idx in range(len(rel[0]) // batchsize):
         tensor_data(rel, batch_idx)
         accuracy_rel = model.train_(input_img, input_qst, label)
 
@@ -94,8 +62,8 @@ def train(epoch, rel, norel):
         accuracy_norel = model.train_(input_img, input_qst, label)
 
         if batch_idx % args.log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)] Relations accuracy: {:.0f}% | Non-relations accuracy: {:.0f}%'.format(epoch, batch_idx * bs * 2, len(rel[0]) * 2, \
-                                                                                                                           100. * batch_idx * bs/ len(rel[0]), accuracy_rel, accuracy_norel))
+            print('Train Epoch: {} [{}/{} ({:.0f}%)] Relations accuracy: {:.0f}% | Non-relations accuracy: {:.0f}%'.format(epoch, batch_idx * batchsize * 2, len(rel[0]) * 2, \
+                                                                                                                           100. * batch_idx * batchsize/ len(rel[0]), accuracy_rel, accuracy_norel))
             
 
 def test(epoch, rel, norel):
@@ -109,7 +77,7 @@ def test(epoch, rel, norel):
 
     accuracy_rels = []
     accuracy_norels = []
-    for batch_idx in range(len(rel[0]) / bs):
+    for batch_idx in range(len(rel[0]) // batchsize):
         tensor_data(rel, batch_idx)
         accuracy_rels.append(model.test_(input_img, input_qst, label))
 
@@ -126,7 +94,7 @@ def load_data():
     print('loading data...')
     dirs = './data'
     filename = os.path.join(dirs,'sort-of-clevr.pickle')
-    f = open(filename, 'r')
+    f = open(filename, 'rb')
     train_datasets, test_datasets = pickle.load(f)
     rel_train = []
     rel_test = []
@@ -153,18 +121,10 @@ def load_data():
 
 rel_train, rel_test, norel_train, norel_test = load_data()
 
-try:
-    os.makedirs(model_dirs)
-except:
-    print('directory {} already exists'.format(model_dirs))
 
-if args.resume:
-    filename = os.path.join(model_dirs, args.resume)
-    if os.path.isfile(filename):
-        print('==> loading checkpoint {}'.format(filename))
-        checkpoint = torch.load(filename)
-        model.load_state_dict(checkpoint)
-        print('==> loaded checkpoint {}'.format(filename))
+if args.checkpoint:
+  print('==> loading checkpoint {}'.format(args.checkpoint))
+  model.load_state_dict(torch.load(args.checkpoint))
 
 for epoch in range(1, args.epochs + 1):
     train(epoch, rel_train, norel_train)
