@@ -5,9 +5,37 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
 
-class RN(nn.Module):
+class Model(nn.Module):
+  
+  def __init__(self):
+    super(Model, self).__init__()
 
-    def __init__(self,args):
+
+  def train_(self, input_img, input_qst, label):
+    self.optimizer.zero_grad()
+    output = self(input_img, input_qst)
+    loss = F.nll_loss(output, label)
+    loss.backward()
+    self.optimizer.step()
+    pred = output.data.max(1)[1]
+    correct = pred.eq(label.data).cpu().sum()
+    accuracy = correct * 100. / len(label)
+    return accuracy
+
+
+  def test_(self, input_img, input_qst, label):
+    output = self(input_img, input_qst)
+    pred = output.data.max(1)[1]
+    correct = pred.eq(label.data).cpu().sum()
+    accuracy = correct * 100. / len(label)
+    return accuracy  
+  
+
+
+
+class RN(Model):
+
+    def __init__(self,  args):
         super(RN, self).__init__()
         self.conv1 = nn.Conv2d(3, 24, 3, stride=2, padding=1)
         self.batchNorm1 = nn.BatchNorm2d(24)
@@ -83,25 +111,49 @@ class RN(nn.Module):
         return F.log_softmax(x_f)
 
 
-    def train_(self, input_img, input_qst, label):
-        self.optimizer.zero_grad()
-        output = self(input_img, input_qst)
-        loss = F.nll_loss(output, label)
-        loss.backward()
-        self.optimizer.step()
-        pred = output.data.max(1)[1]
-        correct = pred.eq(label.data).cpu().sum()
-        accuracy = correct * 100. / len(label)
-        return accuracy
-        
-
-    def test_(self, input_img, input_qst, label):
-        output = self(input_img, input_qst)
-        pred = output.data.max(1)[1]
-        correct = pred.eq(label.data).cpu().sum()
-        accuracy = correct * 100. / len(label)
-        return accuracy
 
 
-    def save_model(self, epoch):
-        torch.save(self.state_dict(), 'model/epoch_{}.pth'.format(epoch))
+class CNN_MLP(Model):
+
+  def __init__(self, args):
+    super(CNN_MLP, self).__init__()
+    self.conv1 = nn.Conv2d(3, 24, 3, stride=2, padding=1)
+    self.batchNorm1 = nn.BatchNorm2d(24)
+    self.conv2 = nn.Conv2d(24, 24, 3, stride=2, padding=1)
+    self.batchNorm2 = nn.BatchNorm2d(24)
+    self.conv3 = nn.Conv2d(24, 24, 3, stride=2, padding=1)
+    self.batchNorm3 = nn.BatchNorm2d(24)
+    self.conv4 = nn.Conv2d(24, 24, 3, stride=2, padding=1)
+    self.batchNorm4 = nn.BatchNorm2d(24)
+
+    self.fc1 = nn.Linear(5 * 5 * 24, 256)
+    self.fc2 = nn.Linear(256, 256)
+    self.fc3 = nn.Linear(256, 10)
+
+    self.optimizer = optim.Adam(self.parameters(), lr=args.lr)
+
+  
+  def forward(self, img, qst):
+    """convolution"""
+    x = self.conv1(img)
+    x = F.relu(x)
+    x = self.batchNorm1(x)
+    x = self.conv2(x)
+    x = F.relu(x)
+    x = self.batchNorm2(x)
+    x = self.conv3(x)
+    x = F.relu(x)
+    x = self.batchNorm3(x)
+    x = self.conv4(x)
+    x = F.relu(x)
+    x = self.batchNorm4(x)
+
+    """fully connected layers"""
+    x = self.fc1(x.view(x.size(0), -1))
+    x = F.relu(x)
+    x = self.fc2(x)
+    x = F.relu(x)
+    x = F.dropout(x)
+    x = self.fc3(x)
+   
+    return F.log_softmax(x)

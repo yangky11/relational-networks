@@ -10,12 +10,15 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 from parseArgs import parseArgs
-from model import RN
+from model import RN, CNN_MLP
 
 
 args = parseArgs()
 
-model = RN(args)
+if args.model == 'RN':
+  model = RN(args)
+elif args.model == 'CNN-MLP':
+  model = CNN_MLP(args)
 model.cuda()
 
 batchsize = args.batchsize
@@ -25,9 +28,9 @@ label = Variable(torch.LongTensor(batchsize).cuda())
 
 
 def tensor_data(data, i):
-    img = torch.from_numpy(np.asarray(data[0][batchsize*i:batchsize*(i+1)]))
-    qst = torch.from_numpy(np.asarray(data[1][batchsize*i:batchsize*(i+1)]))
-    ans = torch.from_numpy(np.asarray(data[2][batchsize*i:batchsize*(i+1)]))
+    img = torch.from_numpy(np.asarray(data[0][batchsize * i : batchsize * (i + 1)]))
+    qst = torch.from_numpy(np.asarray(data[1][batchsize * i : batchsize * (i + 1)]))
+    ans = torch.from_numpy(np.asarray(data[2][batchsize * i : batchsize * (i + 1)]))
 
     input_img.data.resize_(img.size()).copy_(img)
     input_qst.data.resize_(qst.size()).copy_(qst)
@@ -94,8 +97,7 @@ def load_data():
     print('loading data...')
     dirs = './data'
     filename = os.path.join(dirs,'sort-of-clevr.pickle')
-    f = open(filename, 'rb')
-    train_datasets, test_datasets = pickle.load(f)
+    train_datasets, test_datasets = pickle.load(open(filename, 'rb'))
     rel_train = []
     rel_test = []
     norel_train = []
@@ -121,7 +123,6 @@ def load_data():
 
 rel_train, rel_test, norel_train, norel_test = load_data()
 
-
 if args.checkpoint:
   print('==> loading checkpoint {}'.format(args.checkpoint))
   model.load_state_dict(torch.load(args.checkpoint))
@@ -129,4 +130,4 @@ if args.checkpoint:
 for epoch in range(1, args.epochs + 1):
     train(epoch, rel_train, norel_train)
     test(epoch, rel_test, norel_test)
-    model.save_model(epoch)
+    torch.save(model.state_dict(), os.path.join(args.checkpoint_dir, 'model_%d.pth' % epoch))

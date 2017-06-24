@@ -7,6 +7,8 @@ def parseArgs():
 
   parser = argparse.ArgumentParser(description='Relation Networks')
 
+  parser.add_argument('--model', type=str, default='RN', choices=['RN', 'CNN-MLP'],
+                      help='the model to use')
   parser.add_argument('--batchsize', type=int, default=64, metavar='N',
                       help='input batch size for training (default: 64)')
   parser.add_argument('--epochs', type=int, default=20, metavar='N',
